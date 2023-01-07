@@ -1,15 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:toonflix/services/api_service.dart';
+import 'package:toonflix/widgets/episode_widget.dart';
 
-class DetailScreen extends StatelessWidget {
+class DetailScreen extends StatefulWidget {
   final String title, thumb, id;
-
   const DetailScreen({
     super.key,
     required this.title,
     required this.thumb,
     required this.id,
   });
+
+  @override
+  State<DetailScreen> createState() => _DetailScreenState();
+}
+
+class _DetailScreenState extends State<DetailScreen> {
+  late SharedPreferences prefs;
+  bool isLiked = false;
+
+  Future initPref() async {
+    prefs = await SharedPreferences.getInstance();
+    final likedToons = prefs.getStringList("likedToons");
+    if (likedToons != null) {
+      if (likedToons.contains(widget.id)) {
+        setState(() {
+          isLiked = true;
+        });
+      }
+    } else {
+      await prefs.setStringList("likedToons", <String>[]);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    initPref();
+  }
+
+  void onHeartTap() async {
+    final likedToons = prefs.getStringList("likedToons");
+    if (likedToons != null) {
+      if (isLiked) {
+        likedToons.remove(widget.id);
+      } else {
+        likedToons.add(widget.id);
+      }
+      setState(() {
+        isLiked = !isLiked;
+      });
+      await prefs.setStringList("likedToons", likedToons);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,8 +64,22 @@ class DetailScreen extends StatelessWidget {
         elevation: 1,
         backgroundColor: Colors.white,
         foregroundColor: Colors.green,
+        actions: [
+          IconButton(
+            onPressed: onHeartTap,
+            icon: Icon(
+              () {
+                if (isLiked) {
+                  return Icons.favorite_rounded;
+                } else {
+                  return Icons.favorite_outline_rounded;
+                }
+              }(),
+            ),
+          )
+        ],
         title: Text(
-          title,
+          widget.title,
           style: const TextStyle(
             fontSize: 24,
           ),
@@ -36,7 +94,7 @@ class DetailScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Hero(
-                    tag: id,
+                    tag: widget.id,
                     child: Container(
                       clipBehavior: Clip.hardEdge,
                       decoration: BoxDecoration(
@@ -49,7 +107,7 @@ class DetailScreen extends StatelessWidget {
                             ),
                           ]),
                       width: 250,
-                      child: Image.network(thumb),
+                      child: Image.network(widget.thumb),
                     ),
                   ),
                 ],
@@ -58,7 +116,7 @@ class DetailScreen extends StatelessWidget {
                 height: 25,
               ),
               FutureBuilder(
-                future: ApiService.getToonById(id),
+                future: ApiService.getToonById(widget.id),
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
                     return Column(
@@ -89,52 +147,16 @@ class DetailScreen extends StatelessWidget {
                 height: 25,
               ),
               FutureBuilder(
-                future: ApiService.getLatestEpisodesById(id),
+                future: ApiService.getLatestEpisodesById(widget.id),
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
                     return Column(
                       children: [
                         for (var episode in snapshot.data!)
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade400,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  blurRadius: 5,
-                                  offset: const Offset(5, 5),
-                                  color: Colors.black.withOpacity(0.1),
-                                ),
-                              ],
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 20,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      episode.title,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Colors.white,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
+                          Episode(
+                            episode: episode,
+                            webtoonId: widget.id,
+                          ),
                       ],
                     );
                   }
